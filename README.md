@@ -6,6 +6,10 @@
     <img src="https://counter.seku.su/cmoe?name=localsend-go&theme=mb" alt="localsend-go" />
 </div>
 
+## Differences from Original Repository
+
+This fork of `meowrain/localsend-go` includes translated user-facing print statements and comments to English, enhancing readability and usability for English-speaking users. It also features updated build processes for cross-compilation and Debian packaging.
+
 ## 文档 | Document | ドキュメント
 
 [中文](doc/README_zh.md) | [English](doc/README_en.md) | [日本語](doc/README_jp.md)
