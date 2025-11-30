@@ -58,7 +58,7 @@ for pair in "${ARCHS[@]}"; do
     # Let's just rely on basic valid control file.)
 
     # Build .deb
-    dpkg-deb --build "$BUILD_DIR" "${OUTPUT_DIR}/${PROJECT_NAME}_${VERSION}_${DEB_ARCH}.deb"
+    dpkg-deb --build --root-owner-group "$BUILD_DIR" "${OUTPUT_DIR}/${PROJECT_NAME}_${VERSION}_${DEB_ARCH}.deb"
 
     echo "Created ${OUTPUT_DIR}/${PROJECT_NAME}_${VERSION}_${DEB_ARCH}.deb"
 done
