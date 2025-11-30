@@ -38,7 +38,7 @@ func ListenForUDPBroadcasts(updates chan<- []models.SendModel) {
 
 		logger.Debugf("Received UDP broadcast from %s, size: %d bytes", remoteAddr.String(), n)
 
-		// 打印原始消息内容以便调试
+		// Print raw message content for debugging
 		logger.Debugf("Raw message: %s", string(buf[:n]))
 
 		var message models.BroadcastMessage
@@ -47,7 +47,7 @@ func ListenForUDPBroadcasts(updates chan<- []models.SendModel) {
 			continue
 		}
 
-		// 验证必要字段
+		// Validate required fields
 		if message.Alias == "" || message.DeviceType == "" {
 			logger.Errorf("Invalid broadcast message from %s: missing required fields", remoteAddr.IP.String())
 			continue
@@ -99,8 +99,8 @@ func StartUDPBroadcast() {
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 
-	const maxFailCount = 3 // 最大失败次数
-	failCount := 0         // 失败计数器
+	const maxFailCount = 3 // Maximum failure count
+	failCount := 0         // Failure counter
 
 	refreshConnection := func() {
 		conn.Close()
@@ -119,7 +119,7 @@ func StartUDPBroadcast() {
 			if failCount >= maxFailCount {
 				logger.Info("Refreshing UDP connection due to consecutive failures")
 				refreshConnection()
-				failCount = 0 // 重置失败计数器
+				failCount = 0 // Reset failure counter
 			}
 			continue
 		}
@@ -131,12 +131,12 @@ func StartUDPBroadcast() {
 			if failCount >= maxFailCount {
 				logger.Info("Refreshing UDP connection due to consecutive failures")
 				refreshConnection()
-				failCount = 0 // 重置失败计数器
+				failCount = 0 // Reset failure counter
 			}
 			continue
 		}
 
 		logger.Debug("Sent UDP broadcast")
-		failCount = 0 // 成功发送后重置失败计数器
+		failCount = 0 // Reset failure counter after successful send
 	}
 }

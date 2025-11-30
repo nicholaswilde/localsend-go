@@ -13,7 +13,7 @@ const (
 	broadcastPort = 53317
 	httpTimeout   = 2 * time.Second
 	scanInterval  = 2 * time.Second
-	deviceTTL     = 200 * time.Second // 设备的生存时间
+	deviceTTL     = 200 * time.Second // Device TTL
 )
 
 func ListenAndStartBroadcasts(updates chan<- []models.SendModel) {

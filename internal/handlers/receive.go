@@ -21,7 +21,7 @@ import (
 var (
 	sessionIDCounter = 0
 	sessionMutex     sync.Mutex
-	fileNames        = make(map[string]string) // 用于保存文件名
+	fileNames        = make(map[string]string) // Used to save filenames
 )
 
 func PrepareReceive(w http.ResponseWriter, r *http.Request) {
@@ -44,7 +44,7 @@ func PrepareReceive(w http.ResponseWriter, r *http.Request) {
 		token := fmt.Sprintf("token-%s", fileID)
 		files[fileID] = token
 
-		// 保存文件名
+		// Save filename
 		fileNames[fileID] = fileInfo.FileName
 
 		if strings.HasSuffix(fileInfo.FileName, ".txt") {
@@ -66,22 +66,22 @@ func ReceiveHandler(w http.ResponseWriter, r *http.Request) {
 	fileID := r.URL.Query().Get("fileId")
 	token := r.URL.Query().Get("token")
 
-	// 验证请求参数
+	// Validate request parameters
 	if sessionID == "" || fileID == "" || token == "" {
 		http.Error(w, "Missing parameters", http.StatusBadRequest)
 		return
 	}
 
-	// 使用 fileID 获取文件名
+	// Use fileID to get filename
 	fileName, ok := fileNames[fileID]
 	if !ok {
 		http.Error(w, "Invalid file ID", http.StatusBadRequest)
 		return
 	}
 
-	// 生成文件路径，保留文件扩展名
+	// Generate file path, preserve file extension
 	filePath := filepath.Join("uploads", fileName)
-	// 创建文件夹（如果不存在）
+	// Create directory (if it doesn't exist)
 	dir := filepath.Dir(filePath)
 	err := os.MkdirAll(dir, os.ModePerm)
 	if err != nil {
@@ -89,7 +89,7 @@ func ReceiveHandler(w http.ResponseWriter, r *http.Request) {
 		logger.Errorf("Error creating directory:", err)
 		return
 	}
-	// 创建文件
+	// Create file
 	file, err := os.Create(filePath)
 	if err != nil {
 		http.Error(w, "Failed to create file", http.StatusInternalServerError)
@@ -98,28 +98,28 @@ func ReceiveHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	// 创建一个 context 来处理请求取消
+	// Create a context to handle request cancellation
 	ctx := r.Context()
 
-	// 创建文件后，获取文件大小
+	// After creating file, get file size
 	contentLength := r.ContentLength
 
-	// 创建进度条
+	// Create progress bar
 	bar := progressbar.NewOptions64(
 		contentLength,
-		progressbar.OptionSetDescription(fmt.Sprintf("下载 %s", fileName)),
+		progressbar.OptionSetDescription(fmt.Sprintf("Downloading %s", fileName)),
 		progressbar.OptionSetWidth(15),
 		progressbar.OptionShowBytes(true),
-		progressbar.OptionThrottle(time.Second), // 降低刷新频率，减少闪烁
+		progressbar.OptionThrottle(time.Second), // Reduce refresh rate to reduce flickering
 		progressbar.OptionShowCount(),
-		progressbar.OptionClearOnFinish(), // 完成时清除进度条
+		progressbar.OptionClearOnFinish(), // Clear progress bar on finish
 		progressbar.OptionSetRenderBlankState(true),
-		progressbar.OptionSetPredictTime(true), // 预测剩余时间
-		progressbar.OptionFullWidth(),          // 使用全宽显示
+		progressbar.OptionSetPredictTime(true), // Predict remaining time
+		progressbar.OptionFullWidth(),          // Use full width display
 		progressbar.OptionSetTheme(progressbar.Theme{
-			Saucer:        "█", // 使用实心方块
+			Saucer:        "█", // Use solid block
 			SaucerHead:    "█",
-			SaucerPadding: "░", // 使用灰色方块作为背景
+			SaucerPadding: "░", // Use gray block as background
 			BarStart:      "|",
 			BarEnd:        "|",
 		}),
@@ -128,16 +128,16 @@ func ReceiveHandler(w http.ResponseWriter, r *http.Request) {
 		}),
 	)
 
-	buffer := make([]byte, 2*1024*1024) // 2MB 缓冲区
+	buffer := make([]byte, 2*1024*1024) // 2MB buffer
 
-	// 使用 channel 来处理传输完成或取消
+	// Use channel to handle transfer completion or cancellation
 	done := make(chan error, 1)
 
 	go func() {
 		for {
 			n, err := r.Body.Read(buffer)
 			if err != nil && err != io.EOF {
-				done <- fmt.Errorf("读取文件失败: %w", err)
+				done <- fmt.Errorf("Failed to read file: %w", err)
 				return
 			}
 			if n == 0 {
@@ -147,7 +147,7 @@ func ReceiveHandler(w http.ResponseWriter, r *http.Request) {
 
 			_, err = file.Write(buffer[:n])
 			if err != nil {
-				done <- fmt.Errorf("写入文件失败: %w", err)
+				done <- fmt.Errorf("Failed to write file: %w", err)
 				return
 			}
 
@@ -155,28 +155,28 @@ func ReceiveHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	// 等待传输完成或取消
+	// Wait for transfer completion or cancellation
 	select {
 	case err := <-done:
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
-			logger.Errorf("传输错误:", err)
-			// 删除未完成的文件
+			logger.Errorf("Transfer error:", err)
+			// Delete incomplete file
 			os.Remove(filePath)
 			return
 		}
 	case <-ctx.Done():
-		// 请求被取消
-		logger.Info("传输被取消")
-		// 删除未完成的文件
+		// Request cancelled
+		logger.Info("Transfer cancelled")
+		// Delete incomplete file
 		os.Remove(filePath)
-		// 关闭连接
+		// Close connection
 		if conn, ok := w.(http.CloseNotifier); ok {
 			conn.CloseNotify()
 		}
 		return
 	}
 
-	logger.Success("文件保存到:", filePath)
+	logger.Success("File saved to:", filePath)
 	w.WriteHeader(http.StatusOK)
 }
