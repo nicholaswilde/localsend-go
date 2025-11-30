@@ -11,7 +11,7 @@ OUT_DIR := ./bin
 GO := go
 
 # 目标平台
-PLATFORMS := linux/amd64 linux/arm64 linux/riscv64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64
+PLATFORMS := linux/amd64 linux/arm64 linux/riscv64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64 linux/arm/7 linux/arm/6
 
 # 默认目标
 .PHONY: all
@@ -33,8 +33,8 @@ build: create-out-dir $(PLATFORMS)
 
 # 针对每个平台编译
 $(PLATFORMS):
-	GOOS=$(word 1, $(subst /, ,$@)) GOARCH=$(word 2, $(subst /, ,$@)) \
-	$(GO) build -o $(OUT_DIR)/$(PROJECT_NAME)-$(word 1, $(subst /, ,$@))-$(word 2, $(subst /, ,$@))$(if $(findstring windows,$@),.exe) $(SRC_DIR)
+	GOOS=$(word 1, $(subst /, ,$@)) GOARCH=$(word 2, $(subst /, ,$@)) GOARM=$(word 3, $(subst /, ,$@)) CGO_ENABLED=0 \
+	$(GO) build -o $(OUT_DIR)/$(PROJECT_NAME)-$(word 1, $(subst /, ,$@))-$(word 2, $(subst /, ,$@))$(if $(word 3, $(subst /, ,$@)),v$(word 3, $(subst /, ,$@)))$(if $(findstring windows,$@),.exe) $(SRC_DIR)
 
 # 测试
 .PHONY: test
