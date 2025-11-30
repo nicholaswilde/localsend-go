@@ -31,6 +31,8 @@ jobs:
           [
             linux/amd64,
             linux/arm64,
+            linux/arm/7,
+            linux/arm/6,
             darwin/amd64,
             darwin/arm64,
             windows/amd64,
@@ -48,30 +50,104 @@ jobs:
       - name: Get OS and ARCH
         id: platform
         run: |
-          echo "GOOS=$(echo ${{ matrix.platform }} | cut -d '/' -f1)" >> $GITHUB_OUTPUT
-          echo "GOARCH=$(echo ${{ matrix.platform }} | cut -d '/' -f2)" >> $GITHUB_OUTPUT
-          FORMATTED_PLATFORM=$(echo "${{ matrix.platform }}" | sed 's/\//-/g')
-          echo "FORMATTED_PLATFORM=$FORMATTED_PLATFORM" >> $GITHUB_OUTPUT
-          if [[ "${{ matrix.platform }}" == *"windows"* ]]; then
+          PLATFORM=${{ matrix.platform }}
+          GOOS=$(echo $PLATFORM | cut -d '/' -f1)
+          GOARCH=$(echo $PLATFORM | cut -d '/' -f2)
+          GOARM=$(echo $PLATFORM | cut -d '/' -f3)
+          
+          echo "GOOS=$GOOS" >> $GITHUB_OUTPUT
+          echo "GOARCH=$GOARCH" >> $GITHUB_OUTPUT
+          echo "GOARM=$GOARM" >> $GITHUB_OUTPUT
+          
+          # Construct friendly filename
+          if [ "$GOARCH" == "arm" ]; then
+            FRIENDLY_PLATFORM="${GOOS}-armv${GOARM}"
+          else
+            FRIENDLY_PLATFORM="${GOOS}-${GOARCH}"
+          fi
+          echo "FRIENDLY_PLATFORM=$FRIENDLY_PLATFORM" >> $GITHUB_OUTPUT
+
+          if [[ "$GOOS" == "windows" ]]; then
             echo "EXT=.exe" >> $GITHUB_OUTPUT
           else
             echo "EXT=" >> $GITHUB_OUTPUT
           fi
 
-      - name: Build
+      - name: Build Binary
         env:
           GOOS: ${{ steps.platform.outputs.GOOS }}
           GOARCH: ${{ steps.platform.outputs.GOARCH }}
+          GOARM: ${{ steps.platform.outputs.GOARM }}
         run: |
           mkdir -p ./artifacts
-          go build -o "./artifacts/localsend-go-${{ steps.platform.outputs.FORMATTED_PLATFORM }}${{ steps.platform.outputs.EXT }}" .
+          BINARY_NAME="localsend-go-${{ steps.platform.outputs.FRIENDLY_PLATFORM }}${{ steps.platform.outputs.EXT }}"
+          go build -o "./artifacts/$BINARY_NAME" .
+          echo "BINARY_PATH=./artifacts/$BINARY_NAME" >> $GITHUB_ENV
+          echo "BINARY_NAME=$BINARY_NAME" >> $GITHUB_ENV
 
-      - name: Upload Release Asset
+      - name: Create Archive (.tar.gz)
+        run: |
+          cd artifacts
+          tar -czvf "${{ env.BINARY_NAME }}.tar.gz" "${{ env.BINARY_NAME }}"
+          echo "ARCHIVE_NAME=${{ env.BINARY_NAME }}.tar.gz" >> $GITHUB_ENV
+          echo "ARCHIVE_PATH=./artifacts/${{ env.BINARY_NAME }}.tar.gz" >> $GITHUB_ENV
+
+      - name: Create Deb Package (Linux Only)
+        if: steps.platform.outputs.GOOS == 'linux'
+        run: |
+          # Determine Deb Architecture
+          GOARCH=${{ steps.platform.outputs.GOARCH }}
+          GOARM=${{ steps.platform.outputs.GOARM }}
+          
+          if [ "$GOARCH" == "amd64" ]; then DEB_ARCH="amd64"; fi
+          if [ "$GOARCH" == "arm64" ]; then DEB_ARCH="arm64"; fi
+          if [ "$GOARCH" == "arm" ] && [ "$GOARM" == "7" ]; then DEB_ARCH="armhf"; fi
+          if [ "$GOARCH" == "arm" ] && [ "$GOARM" == "6" ]; then DEB_ARCH="armel"; fi
+          
+          if [ ! -z "$DEB_ARCH" ]; then
+            VERSION=${GITHUB_REF#refs/tags/v}
+            echo "Building .deb for $DEB_ARCH version $VERSION"
+            
+            BUILD_DIR="deb_build"
+            mkdir -p $BUILD_DIR/DEBIAN
+            mkdir -p $BUILD_DIR/usr/local/bin
+            
+            # Copy binary
+            cp "${{ env.BINARY_PATH }}" "$BUILD_DIR/usr/local/bin/localsend-cli"
+            chmod 755 "$BUILD_DIR/usr/local/bin/localsend-cli"
+            
+            # Copy control files
+            cp -r debian/DEBIAN/* "$BUILD_DIR/DEBIAN/"
+            chmod 755 "$BUILD_DIR/DEBIAN/postinst"
+            
+            # Update Control File (Architecture and Version)
+            sed -i "s/^Architecture: .*/Architecture: $DEB_ARCH/" "$BUILD_DIR/DEBIAN/control"
+            sed -i "s/^Version: .*/Version: $VERSION/" "$BUILD_DIR/DEBIAN/control"
+            
+            DEB_NAME="localsend-cli_${VERSION}_${DEB_ARCH}.deb"
+            dpkg-deb --build "$BUILD_DIR" "./artifacts/$DEB_NAME"
+            
+            echo "DEB_NAME=$DEB_NAME" >> $GITHUB_ENV
+            echo "DEB_PATH=./artifacts/$DEB_NAME" >> $GITHUB_ENV
+          fi
+
+      - name: Upload Archive Asset
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ./artifacts/localsend-go-${{ steps.platform.outputs.FORMATTED_PLATFORM }}${{ steps.platform.outputs.EXT }}
-          asset_name: localsend-go-${{ steps.platform.outputs.FORMATTED_PLATFORM }}${{ steps.platform.outputs.EXT }}
-          asset_content_type: application/octet-stream
+          asset_path: ${{ env.ARCHIVE_PATH }}
+          asset_name: ${{ env.ARCHIVE_NAME }}
+          asset_content_type: application/gzip
+
+      - name: Upload Deb Asset
+        if: steps.platform.outputs.GOOS == 'linux' && env.DEB_NAME != ''
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ${{ env.DEB_PATH }}
+          asset_name: ${{ env.DEB_NAME }}
+          asset_content_type: application/vnd.debian.binary-package
