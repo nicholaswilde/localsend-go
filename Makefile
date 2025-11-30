@@ -50,6 +50,12 @@ deps:
 format:
 	go fmt ./...
 
+# 构建 deb 包
+.PHONY: deb
+deb: build
+	chmod +x build_dpkg.sh
+	./build_dpkg.sh
+
 # 使用方法
 .PHONY: help
 help:
@@ -58,6 +64,7 @@ help:
 	@echo "  make            - 编译所有平台的可执行文件"
 	@echo "  make clean      - 清理输出目录"
 	@echo "  make build      - 编译所有平台的可执行文件"
+	@echo "  make deb        - 构建 deb 包 (需要 Linux 环境)"
 	@echo "  make test       - 运行测试"
 	@echo "  make deps       - 安装依赖"
 	@echo "  make help       - 显示此帮助信息"
