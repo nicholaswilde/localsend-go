@@ -15,7 +15,7 @@ ARCHS=(
     "amd64:linux-amd64"
     "arm64:linux-arm64"
     "armhf:linux-armv7"
-    "armel:linux-armv6"
+    "armhf:linux-armv6"
 )
 
 for pair in "${ARCHS[@]}"; do
@@ -57,10 +57,16 @@ for pair in "${ARCHS[@]}"; do
     # (Skipping Installed-Size modification to keep it simple, dpkg usually handles it or ignores it, but strictly it should be there. 
     # Let's just rely on basic valid control file.)
 
-    # Build .deb
-    dpkg-deb --build --root-owner-group "$BUILD_DIR" "${OUTPUT_DIR}/${PROJECT_NAME}_${VERSION}_${DEB_ARCH}.deb"
+    # Determine output filename
+    DEB_FILENAME="${PROJECT_NAME}_${VERSION}_${DEB_ARCH}.deb"
+    if [ "$GO_SUFFIX" == "linux-armv6" ]; then
+        DEB_FILENAME="${PROJECT_NAME}_${VERSION}_${DEB_ARCH}+armv6.deb"
+    fi
 
-    echo "Created ${OUTPUT_DIR}/${PROJECT_NAME}_${VERSION}_${DEB_ARCH}.deb"
+    # Build .deb
+    dpkg-deb --build --root-owner-group "$BUILD_DIR" "${OUTPUT_DIR}/${DEB_FILENAME}"
+
+    echo "Created ${OUTPUT_DIR}/${DEB_FILENAME}"
 done
 
 # Cleanup
